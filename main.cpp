@@ -16,11 +16,12 @@ class Particle
 {
 public:
 
-    Particle(int pos_x, int pos_y, std::string icon)
+    Particle(int pos_x, int pos_y, std::string icon, bool isImmovable)
     {
         this->pos_x = pos_x;
         this->pos_y = pos_y;
         this->icon = icon;
+        this->immovable = isImmovable;
     }
 
     std::string getIcon()
@@ -43,12 +44,15 @@ public:
 
     }
 
+    bool isImmovable() {return immovable;}
+
 private:
 
     int pos_x;
     int pos_y;
 
     std::string icon;
+    bool immovable;
     
 };
 
@@ -83,11 +87,11 @@ public:
 
     // Add particle to an empty position.
     // Returns true if successful.
-    bool addParticle(int x, int y, std::string icon)
+    bool addParticle(int x, int y, std::string icon, bool isImmovable)
     {
         if (isWithinMapBounds(x, y) && isPositionEmpty(x, y))
         {
-            auto particle = std::shared_ptr<Particle>(new Particle(x, y, icon));
+            auto particle = std::shared_ptr<Particle>(new Particle(x, y, icon, isImmovable));
             map[y][x] = particle;
 
             particleList.push_back(particle);
@@ -121,12 +125,48 @@ public:
     // Returns true if successful.
     bool moveParticle(std::shared_ptr<Particle> particle, int dest_x, int dest_y)
     {
-        if (isWithinMapBounds(dest_x, dest_y) && isPositionEmpty(dest_x, dest_y))
+        if (isWithinMapBounds(dest_x, dest_y) && isPositionEmpty(dest_x, dest_y)
+            && particle->isImmovable() == false)
         {
             map[particle->getY()][particle->getX()] = nullptr;
             particle->setPosition(dest_x, dest_y);
             map[dest_y][dest_x] = particle;
 
+            return true;
+        }
+
+        return false;
+    }
+
+    bool swapParticle(std::shared_ptr<Particle> particle, int dest_x, int dest_y)
+    {
+        if (particle->isImmovable() == true)
+        {
+            return false;
+        }
+
+        if (isWithinMapBounds(dest_x, dest_y))
+        {
+            if (isPositionEmpty(dest_x, dest_y))
+            {
+                moveParticle(particle, dest_x, dest_y);
+            }
+            else
+            {
+                auto tempParticle = map[dest_y][dest_x];
+
+                if (tempParticle->isImmovable() == true)
+                {
+                    return false;
+                }
+
+                map[particle->getY()][particle->getX()] = tempParticle;
+                tempParticle->setPosition(particle->getX(), particle->getY());
+
+                particle->setPosition(dest_x, dest_y);
+                map[dest_y][dest_x] = particle;
+            }
+            
             return true;
         }
 
@@ -200,38 +240,15 @@ public:
     {
         for (std::shared_ptr<Particle> particle : particleList)
         {
-            
-
             //particle->update();
 
             int current_x = particle->getX();
             int current_y = particle->getY();
 
-            // TODO - fix up stuffs
-
-            if (isWithinMapBounds(current_x, current_y + 1) && isPositionEmpty(current_x, current_y + 1))
+            if (moveParticle(particle, current_x, current_y + 1) == false)
             {
-                moveParticle(particle, current_x, current_y + 1);
-            }
-            else
-            {
-                // Choose between left or right at random.
-                int randomDir = rand() % 2; // 0 or 1
-
-                if (randomDir == 0)
-                {
-                    if (isWithinMapBounds(current_x - 1, current_y) && isWithinMapBounds(current_x - 1, current_y + 1) && isPositionEmpty(current_x - 1, current_y) && isPositionEmpty(current_x - 1, current_y + 1))
-                    {
-                        moveParticle(particle, current_x - 1, current_y);
-                    }
-                }
-                else
-                {
-                    if (isWithinMapBounds(current_x + 1, current_y) && isWithinMapBounds(current_x + 1, current_y + 1) && isPositionEmpty(current_x + 1, current_y) && isPositionEmpty(current_x + 1, current_y + 1))
-                    {
-                        moveParticle(particle, current_x + 1, current_y);
-                    }
-                }
+                int randomDirX = rand() % 9 - 4; // -1, 0, 1
+                swapParticle(particle, current_x + randomDirX, current_y);
             }
         }
     }
@@ -261,26 +278,67 @@ int main()
     //long timeout = 2;
     //long prevTime = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 
+    for (int row = 30; row < MAP_HEIGHT; row++)
+    {
+        for (int col = 20; col < 40; col++)
+        {
+            map.addParticle(col, row, ".", true);
+        }
+    }
+
     while (true)
     {
-        if (count % 5 == 0 && count < 2000)
+        if (count % 5 == 0 && (count < 1600 || (count > 1800 && count < 2000)))
         {
-            map.addParticle(5, 0, "#");
+            map.addParticle(5, 0, "o", false);
             // map.addParticle(10, 0);
             // map.addParticle(15, 0);
-            map.addParticle(20, 0, "@");
-            map.addParticle(25, 0, "o");
+            map.addParticle(20, 0, "O", false);
+            map.addParticle(25, 0, "o", false);
             // map.addParticle(30, 0);
             // map.addParticle(35, 0);
-            map.addParticle(40, 0, "+");
-            map.addParticle(45, 0, "%");
+            map.addParticle(40, 0, "O", false);
+            map.addParticle(45, 0, "o", false);
         }
 
-        if (count % 10 == 0 && count > 1000)
+        if (count == 1600)
         {
-                map.removeParticle(25, 49);
-                map.removeParticle(24, 49);
+            for (int row = 30; row < MAP_HEIGHT; row++)
+            {
+                for (int col = 20; col < 40; col++)
+                {
+                    map.removeParticle(col, row);
+                }
+            }
         }
+
+        if (count % 500 == 0 && count > 1800 && count < 3600)
+        {
+            for (int row = 20; row < MAP_HEIGHT; row++)
+            {
+                for (int col = 20; col < MAP_WIDTH; col++)
+                {
+                    map.removeParticle(col, row);
+                }
+            }
+        }
+
+        // if (count == 1200)
+        // {
+        //     for (int row = 12; row < 16; row++)
+        //     {
+        //         for (int col = 25; col < 35; col++)
+        //         {
+        //             map.addParticle(col, row, "x", true);
+        //         }
+        //     }
+        // }
+
+        // if (count % 10 == 0 && count > 1000)
+        // {
+        //         map.removeParticle(25, 49);
+        //         map.removeParticle(24, 49);
+        // }
         
 
         // if (std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) - prevTime > timeout)
@@ -293,8 +351,10 @@ int main()
 
 
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
         std::cout << "\033[2J\033[1;1H";
         map.printMap();
+
         map.update();
 
         count++;
